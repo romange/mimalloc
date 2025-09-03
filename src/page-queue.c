@@ -232,6 +232,10 @@ static void mi_page_queue_remove(mi_page_queue_t* queue, mi_page_t* page) {
   page->next = NULL;
   page->prev = NULL;
   // mi_atomic_store_ptr_release(mi_atomic_cast(void*, &page->heap), NULL);
+  if (mi_page_queue_is_full(queue)) {
+    mi_assert_internal(heap->full_page_size >= mi_page_block_size(page) * page->capacity);
+    heap->full_page_size -= mi_page_block_size(page) * page->capacity;
+  }
   mi_page_set_in_full(page,false);
 }
 
@@ -246,6 +250,9 @@ static void mi_page_queue_push(mi_heap_t* heap, mi_page_queue_t* queue, mi_page_
                       (mi_page_is_large_or_huge(page) && mi_page_queue_is_huge(queue)) ||
                         (mi_page_is_in_full(page) && mi_page_queue_is_full(queue)));
 
+  if (mi_page_queue_is_full(queue)) {
+    heap->full_page_size += mi_page_block_size(page) * page->capacity;
+  }
   mi_page_set_in_full(page, mi_page_queue_is_full(queue));
   // mi_atomic_store_ptr_release(mi_atomic_cast(void*, &page->heap), heap);
   page->next = queue->first;
@@ -339,6 +346,12 @@ static void mi_page_queue_enqueue_from_ex(mi_page_queue_t* to, mi_page_queue_t* 
     }
   }
 
+  if (mi_page_queue_is_full(to)) {
+    heap->full_page_size += mi_page_block_size(page) * page->capacity;
+  } else if (mi_page_queue_is_full(from)) {
+    mi_assert_internal(heap->full_page_size >= mi_page_block_size(page) * page->capacity);
+    heap->full_page_size -= mi_page_block_size(page) * page->capacity;
+  }
   mi_page_set_in_full(page, mi_page_queue_is_full(to));
 }
 
